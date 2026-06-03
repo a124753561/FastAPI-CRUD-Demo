@@ -13,12 +13,23 @@ fastapi-demo/
 │   ├── main.py                  # FastAPI 应用工厂 & lifespan
 │   ├── config.py                # pydantic-settings 配置（读取 .env）
 │   ├── database.py              # SQLAlchemy 引擎 / 会话 / Base / get_db
-│   ├── api/v1/
-│   │   ├── router.py            # v1 路由聚合
-│   │   └── users.py             # 用户 CRUD 端点
-│   ├── models/user.py           # SQLAlchemy User ORM 模型
-│   ├── schemas/user.py          # Pydantic v2：UserCreate / UserUpdate / UserResponse
-│   ├── services/user.py         # 业务逻辑层
+│   ├── api/
+│   │   ├── response_route.py    # 自定义 APIRoute，统一 ApiResponse 包装
+│   │   └── v1/
+│   │       ├── router.py        # v1 路由聚合
+│   │       ├── users.py         # 用户 CRUD 端点
+│   │       └── roles.py         # 角色 CRUD 端点
+│   ├── models/
+│   │   ├── __init__.py          # 模型导入（供 create_all）
+│   │   ├── user.py              # SQLAlchemy User ORM 模型
+│   │   └── role.py              # SQLAlchemy Role ORM 模型
+│   ├── schemas/
+│   │   ├── response.py          # ApiResponse 通用响应模型
+│   │   ├── user.py              # Pydantic v2：UserCreate/UserUpdate/UserResponse/UserFilter
+│   │   └── role.py              # Pydantic v2：RoleCreate/RoleUpdate/RoleResponse/RoleFilter
+│   ├── services/
+│   │   ├── user.py              # 用户业务逻辑层
+│   │   └── role.py              # 角色业务逻辑层
 │   └── exceptions/
 │       └── handlers.py          # 自定义异常 & 全局异常处理器
 ├── pyproject.toml               # 项目元数据 & 依赖
@@ -88,17 +99,35 @@ python -m app.main
 
 > 确保 PyCharm 使用的 Python 解释器已安装项目依赖。
 
+### SQL 日志
+
+开发时将 `.env` 中 `DEBUG` 设为 `true`，重启后终端会打印所有 SQL 语句。
+
 ## API 接口
+
+### 用户接口
 
 所有接口前缀：`/api/v1/users`
 
-| 方法   | 路径          | 说明              | 参数                                |
-|--------|-------------|-------------------|-------------------------------------|
-| POST   | `/`          | 创建用户          | Body: UserCreate JSON              |
-| GET    | `/`          | 用户列表          | Query: `skip`(默认0), `limit`(默认100)|
-| GET    | `/{user_id}` | 获取用户          | Path: user_id                      |
-| PUT    | `/{user_id}` | 更新用户（部分更新）| Path: user_id, Body: UserUpdate JSON|
-| DELETE | `/{user_id}` | 删除用户          | Path: user_id                      |
+| 方法   | 路径          | 说明              | 参数                                                  |
+|--------|-------------|-------------------|------------------------------------------------------|
+| POST   | `/`          | 创建用户          | Body: UserCreate JSON                                |
+| GET    | `/`          | 用户列表          | Query: `skip`(默认0), `limit`(默认100), `name`(模糊), `age`(精确) |
+| GET    | `/{user_id}` | 获取用户          | Path: user_id                                        |
+| PUT    | `/{user_id}` | 更新用户（部分更新）| Path: user_id, Body: UserUpdate JSON                  |
+| DELETE | `/{user_id}` | 删除用户          | Path: user_id                                        |
+
+### 角色接口
+
+所有接口前缀：`/api/v1/roles`
+
+| 方法   | 路径          | 说明              | 参数                                                  |
+|--------|-------------|-------------------|------------------------------------------------------|
+| POST   | `/`          | 创建角色          | Body: RoleCreate JSON                                |
+| GET    | `/`          | 角色列表          | Query: `skip`(默认0), `limit`(默认100), `name`(模糊)  |
+| GET    | `/{role_id}` | 获取角色          | Path: role_id                                        |
+| PUT    | `/{role_id}` | 更新角色          | Path: role_id, Body: RoleUpdate JSON                 |
+| DELETE | `/{role_id}` | 删除角色          | Path: role_id                                        |
 
 ## 请求示例
 
@@ -109,9 +138,9 @@ curl -X POST "http://127.0.0.1:3002/api/v1/users/" \
   -d '{"name": "张三", "email": "zhangsan@example.com", "age": 28}'
 ```
 
-**用户列表（分页）：**
+**用户列表（分页+过滤）：**
 ```bash
-curl "http://127.0.0.1:3002/api/v1/users/?skip=0&limit=10"
+curl "http://127.0.0.1:3002/api/v1/users/?skip=0&limit=10&name=张&age=28"
 ```
 
 **获取单个用户：**
@@ -124,6 +153,18 @@ curl "http://127.0.0.1:3002/api/v1/users/1"
 curl -X PUT "http://127.0.0.1:3002/api/v1/users/1" \
   -H "Content-Type: application/json" \
   -d '{"name": "李四"}'
+```
+
+**创建角色：**
+```bash
+curl -X POST "http://127.0.0.1:3002/api/v1/roles/" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "管理员", "description": "系统管理员"}'
+```
+
+**角色列表：**
+```bash
+curl "http://127.0.0.1:3002/api/v1/roles/?name=管理"
 ```
 
 **删除用户：**
@@ -152,8 +193,31 @@ curl -X DELETE "http://127.0.0.1:3002/api/v1/users/1"
 | name      | string  | 姓名，1-100 字符      |
 | email     | string  | 邮箱，唯一           |
 | age       | int     | 年龄，0-150，可选     |
+| role_id   | int     | 角色 ID，可选         |
 | created_at| datetime| 创建时间（自动生成）  |
 | updated_at| datetime| 更新时间（自动更新）  |
+
+## 角色字段
+
+| 字段        | 类型     | 说明                 |
+|------------|---------|----------------------|
+| id         | int     | 主键，自增           |
+| name       | string  | 角色名，1-50 字符，唯一|
+| description| string  | 描述，0-200 字符，可选 |
+| created_at | datetime| 创建时间（自动生成）  |
+| updated_at | datetime| 更新时间（自动更新）  |
+
+## 响应格式
+
+所有接口统一返回以下 JSON 结构：
+
+```json
+{
+  "code": 200,
+  "message": "操作成功",
+  "data": { ... }
+}
+```
 
 ## 架构设计
 

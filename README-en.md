@@ -13,12 +13,23 @@ fastapi-demo/
 │   ├── main.py                  # FastAPI app factory & lifespan
 │   ├── config.py                # pydantic-settings config (reads .env)
 │   ├── database.py              # SQLAlchemy engine / session / Base / get_db
-│   ├── api/v1/
-│   │   ├── router.py            # v1 route aggregation
-│   │   └── users.py             # User CRUD endpoints
-│   ├── models/user.py           # SQLAlchemy User ORM model
-│   ├── schemas/user.py          # Pydantic v2: UserCreate / UserUpdate / UserResponse
-│   ├── services/user.py         # Business logic layer
+│   ├── api/
+│   │   ├── response_route.py    # Custom APIRoute for unified ApiResponse wrapping
+│   │   └── v1/
+│   │       ├── router.py        # v1 route aggregation
+│   │       ├── users.py         # User CRUD endpoints
+│   │       └── roles.py         # Role CRUD endpoints
+│   ├── models/
+│   │   ├── __init__.py          # Model imports (for create_all)
+│   │   ├── user.py              # SQLAlchemy User ORM model
+│   │   └── role.py              # SQLAlchemy Role ORM model
+│   ├── schemas/
+│   │   ├── response.py          # ApiResponse generic response model
+│   │   ├── user.py              # Pydantic v2: UserCreate/UserUpdate/UserResponse/UserFilter
+│   │   └── role.py              # Pydantic v2: RoleCreate/RoleUpdate/RoleResponse/RoleFilter
+│   ├── services/
+│   │   ├── user.py              # User business logic
+│   │   └── role.py              # Role business logic
 │   └── exceptions/
 │       └── handlers.py          # Custom exceptions & global handlers
 ├── pyproject.toml               # Project metadata & dependencies
@@ -88,17 +99,35 @@ Once started:
 
 > Make sure the Python interpreter used by PyCharm has project dependencies installed.
 
+### SQL Logging
+
+Set `DEBUG=true` in `.env` during development to print all SQL statements in the terminal.
+
 ## API Endpoints
+
+### User Endpoints
 
 All endpoints prefixed with: `/api/v1/users`
 
-| Method | Path         | Description     | Parameters                                    |
-|--------|-------------|-----------------|-----------------------------------------------|
-| POST   | `/`          | Create user     | Body: UserCreate JSON                         |
-| GET    | `/`          | List users      | Query: `skip`(default 0), `limit`(default 100)|
-| GET    | `/{user_id}` | Get user        | Path: user_id                                 |
-| PUT    | `/{user_id}` | Update user     | Path: user_id, Body: UserUpdate JSON          |
-| DELETE | `/{user_id}` | Delete user     | Path: user_id                                 |
+| Method | Path         | Description     | Parameters                                                           |
+|--------|-------------|-----------------|----------------------------------------------------------------------|
+| POST   | `/`          | Create user     | Body: UserCreate JSON                                                |
+| GET    | `/`          | List users      | Query: `skip`(default 0), `limit`(default 100), `name`(fuzzy), `age`(exact) |
+| GET    | `/{user_id}` | Get user        | Path: user_id                                                        |
+| PUT    | `/{user_id}` | Update user     | Path: user_id, Body: UserUpdate JSON                                 |
+| DELETE | `/{user_id}` | Delete user     | Path: user_id                                                        |
+
+### Role Endpoints
+
+All endpoints prefixed with: `/api/v1/roles`
+
+| Method | Path         | Description     | Parameters                                                      |
+|--------|-------------|-----------------|-----------------------------------------------------------------|
+| POST   | `/`          | Create role     | Body: RoleCreate JSON                                           |
+| GET    | `/`          | List roles      | Query: `skip`(default 0), `limit`(default 100), `name`(fuzzy)   |
+| GET    | `/{role_id}` | Get role        | Path: role_id                                                   |
+| PUT    | `/{role_id}` | Update role     | Path: role_id, Body: RoleUpdate JSON                            |
+| DELETE | `/{role_id}` | Delete role     | Path: role_id                                                   |
 
 ## Request Examples
 
@@ -109,9 +138,9 @@ curl -X POST "http://127.0.0.1:3002/api/v1/users/" \
   -d '{"name": "Zhang San", "email": "zhangsan@example.com", "age": 28}'
 ```
 
-**List users (paginated):**
+**List users (paginated + filtered):**
 ```bash
-curl "http://127.0.0.1:3002/api/v1/users/?skip=0&limit=10"
+curl "http://127.0.0.1:3002/api/v1/users/?skip=0&limit=10&name=Zhang&age=28"
 ```
 
 **Get single user:**
@@ -124,6 +153,18 @@ curl "http://127.0.0.1:3002/api/v1/users/1"
 curl -X PUT "http://127.0.0.1:3002/api/v1/users/1" \
   -H "Content-Type: application/json" \
   -d '{"name": "Li Si"}'
+```
+
+**Create role:**
+```bash
+curl -X POST "http://127.0.0.1:3002/api/v1/roles/" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Admin", "description": "System administrator"}'
+```
+
+**List roles:**
+```bash
+curl "http://127.0.0.1:3002/api/v1/roles/?name=Admin"
 ```
 
 **Delete user:**
@@ -152,8 +193,31 @@ curl -X DELETE "http://127.0.0.1:3002/api/v1/users/1"
 | name       | string   | Name, 1-100 characters         |
 | email      | string   | Email, unique                  |
 | age        | int      | Age, 0-150, optional           |
+| role_id    | int      | Role ID, optional              |
 | created_at | datetime | Creation time (auto)           |
 | updated_at | datetime | Update time (auto)             |
+
+## Role Fields
+
+| Field       | Type     | Description                    |
+|-------------|----------|--------------------------------|
+| id          | int      | Primary key, auto-increment    |
+| name        | string   | Role name, 1-50 chars, unique  |
+| description | string   | Description, 0-200 chars, optional |
+| created_at  | datetime | Creation time (auto)           |
+| updated_at  | datetime | Update time (auto)             |
+
+## Response Format
+
+All endpoints return a unified JSON structure:
+
+```json
+{
+  "code": 200,
+  "message": "OK",
+  "data": { ... }
+}
+```
 
 ## Architecture
 
