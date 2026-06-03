@@ -73,6 +73,21 @@ Once started:
 - API docs: http://127.0.0.1:3002/docs
 - ReDoc: http://127.0.0.1:3002/redoc
 
+### PyCharm Debugging
+
+1. Open PyCharm, click **Add Configuration...** → **+** → **Python**
+2. Configure as follows:
+
+| Field        | Value                           |
+|--------------|---------------------------------|
+| Name         | `FastAPI Debug`                 |
+| Module name  | `app.main`                      |
+| Working dir  | Project root (fastapi-demo)     |
+
+3. Set breakpoints in the code, then click **Debug** to start debugging
+
+> Make sure the Python interpreter used by PyCharm has project dependencies installed.
+
 ## API Endpoints
 
 All endpoints prefixed with: `/api/v1/users`

@@ -4,15 +4,21 @@ from sqlalchemy.orm import Session
 
 from app.exceptions.handlers import ConflictException, NotFoundException
 from app.models.user import User
-from app.schemas.user import UserCreate, UserUpdate
+from app.schemas.user import UserCreate, UserFilter, UserUpdate
 
 
 def get_user(db: Session, user_id: int) -> Optional[User]:
     return db.query(User).filter(User.id == user_id).first()
 
 
-def get_users(db: Session, skip: int = 0, limit: int = 100) -> list[User]:
-    return db.query(User).offset(skip).limit(limit).all()
+def get_users(db: Session, skip: int = 0, limit: int = 100, filters: UserFilter | None = None) -> list[User]:
+    q = db.query(User)
+    if filters:
+        if filters.name:
+            q = q.filter(User.name.contains(filters.name))
+        if filters.age is not None:
+            q = q.filter(User.age == filters.age)
+    return q.offset(skip).limit(limit).all()
 
 
 def get_user_by_email(db: Session, email: str) -> Optional[User]:

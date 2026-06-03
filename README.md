@@ -73,6 +73,21 @@ python -m app.main
 - API 文档：http://127.0.0.1:3002/docs
 - 备用文档：http://127.0.0.1:3002/redoc
 
+### PyCharm 调试
+
+1. 打开 PyCharm，点击右上角 **Add Configuration...** → **+** → **Python**
+2. 配置如下：
+
+| 配置项       | 值                              |
+|-------------|---------------------------------|
+| Name        | `FastAPI Debug`                 |
+| Module name | `app.main`                      |
+| Working dir | 项目根目录（fastapi-demo）       |
+
+3. 在代码中打上断点，点击 **Debug** 按钮即可调试
+
+> 确保 PyCharm 使用的 Python 解释器已安装项目依赖。
+
 ## API 接口
 
 所有接口前缀：`/api/v1/users`
