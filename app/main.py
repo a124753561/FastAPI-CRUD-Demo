@@ -8,6 +8,7 @@ from app.api.v1.router import api_v1_router
 from app.config import settings
 from app.database import Base, engine
 from app.exceptions.handlers import register_exception_handlers
+from app.middleware.auth import AuthMiddleware
 from app.schemas.response import ApiResponse
 
 
@@ -19,6 +20,7 @@ async def lifespan(_app: FastAPI):
 
 def create_app() -> FastAPI:
     app = FastAPI(title=settings.APP_NAME, lifespan=lifespan)
+    app.add_middleware(AuthMiddleware)
     register_exception_handlers(app)
 
     @app.exception_handler(RequestValidationError)

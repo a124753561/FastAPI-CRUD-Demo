@@ -16,7 +16,12 @@ def create_role(role_in: RoleCreate, db: Session = Depends(get_db)):
 
 
 @router.get("/", response_model=list[RoleResponse])
-def list_roles(skip: int = 0, limit: int = 100, filters: RoleFilter = Depends(), db: Session = Depends(get_db)):
+def list_roles(
+    skip: int = 0,
+    limit: int = 100,
+    filters: RoleFilter = Depends(),
+    db: Session = Depends(get_db),
+):
     return role_service.get_roles(db, skip=skip, limit=limit, filters=filters)
 
 

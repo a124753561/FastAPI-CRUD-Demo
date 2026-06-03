@@ -16,6 +16,7 @@ fastapi-demo/
 │   ├── api/
 │   │   ├── response_route.py    # Custom APIRoute for unified ApiResponse wrapping
 │   │   └── v1/
+│   │       ├── auth.py           # Auth endpoint (login)
 │   │       ├── router.py        # v1 route aggregation
 │   │       ├── users.py         # User CRUD endpoints
 │   │       └── roles.py         # Role CRUD endpoints
@@ -28,10 +29,12 @@ fastapi-demo/
 │   │   ├── user.py              # Pydantic v2: UserCreate/UserUpdate/UserResponse/UserFilter
 │   │   └── role.py              # Pydantic v2: RoleCreate/RoleUpdate/RoleResponse/RoleFilter
 │   ├── services/
+│   │   ├── auth.py              # JWT auth logic
 │   │   ├── user.py              # User business logic
 │   │   └── role.py              # Role business logic
 │   └── exceptions/
 │       └── handlers.py          # Custom exceptions & global handlers
+├── init.sql                     # Database init script
 ├── pyproject.toml               # Project metadata & dependencies
 ├── .env                         # Environment variables
 └── README.md
@@ -60,7 +63,15 @@ fastapi-demo/
 pip install -e .
 ```
 
-### 2. Configure database
+### 2. Initialize database
+
+**Option 1: Use SQL script (recommended)**
+
+```bash
+mysql -u user -p < init.sql
+```
+
+**Option 2: Manual setup**
 
 Edit `.env` with your MySQL connection info:
 
@@ -73,6 +84,8 @@ Create the database if it doesn't exist:
 ```bash
 mysql -u user -p -e "CREATE DATABASE IF NOT EXISTS dbname CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
 ```
+
+> If tables don't exist yet, the app auto-creates them on startup (`create_all`) — no manual DDL needed.
 
 ### 3. Start the server
 
@@ -103,7 +116,28 @@ Once started:
 
 Set `DEBUG=true` in `.env` during development to print all SQL statements in the terminal.
 
+### JWT Secret Key
+
+In production, always change `SECRET_KEY` in `.env` to a random string:
+
+```
+SECRET_KEY=your-random-secret-key
+```
+
 ## API Endpoints
+
+### Auth Endpoints
+
+All endpoints prefixed with: `/api/v1/auth`
+
+| Method | Path       | Description            | Parameters                  |
+|--------|------------|------------------------|-----------------------------|
+| POST   | `/login`   | Login with credentials | Body: LoginRequest JSON    |
+| POST   | `/refresh` | Refresh tokens         | Body: RefreshRequest JSON  |
+
+> On success returns `access_token` (30 min) and `refresh_token` (7 days). Use `Authorization: Bearer <access_token>` header for other endpoints.
+> When access_token expires, call `/auth/refresh` with refresh_token to get new tokens.
+> User creation (registration) does not require auth; all other endpoints do.
 
 ### User Endpoints
 
@@ -131,27 +165,50 @@ All endpoints prefixed with: `/api/v1/roles`
 
 ## Request Examples
 
-**Create user:**
+**Login:**
+```bash
+curl -X POST "http://127.0.0.1:3002/api/v1/auth/login" \
+  -H "Content-Type: application/json" \
+  -d '{"email": "zhangsan@example.com", "password": "123456"}'
+```
+
+Response:
+```json
+{"code":200, "message":"OK", "data":{"access_token":"...", "refresh_token":"...", "token_type":"bearer"}}
+```
+
+**Refresh token:**
+```bash
+curl -X POST "http://127.0.0.1:3002/api/v1/auth/refresh" \
+  -H "Content-Type: application/json" \
+  -d '{"refresh_token": "your-refresh-token"}'
+```
+
+**Create user (registration):**
 ```bash
 curl -X POST "http://127.0.0.1:3002/api/v1/users/" \
   -H "Content-Type: application/json" \
-  -d '{"name": "Zhang San", "email": "zhangsan@example.com", "age": 28}'
+  -d '{"name": "Zhang San", "email": "zhangsan@example.com", "password": "123456", "age": 28}'
 ```
 
-**List users (paginated + filtered):**
+**List users (paginated + filtered, auth required):**
 ```bash
-curl "http://127.0.0.1:3002/api/v1/users/?skip=0&limit=10&name=Zhang&age=28"
+TOKEN="your-token-here"
+curl "http://127.0.0.1:3002/api/v1/users/?skip=0&limit=10&name=Zhang&age=28" \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
 **Get single user:**
 ```bash
-curl "http://127.0.0.1:3002/api/v1/users/1"
+curl "http://127.0.0.1:3002/api/v1/users/1" \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
 **Partial update:**
 ```bash
 curl -X PUT "http://127.0.0.1:3002/api/v1/users/1" \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
   -d '{"name": "Li Si"}'
 ```
 
@@ -159,6 +216,7 @@ curl -X PUT "http://127.0.0.1:3002/api/v1/users/1" \
 ```bash
 curl -X POST "http://127.0.0.1:3002/api/v1/roles/" \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
   -d '{"name": "Admin", "description": "System administrator"}'
 ```
 
@@ -169,7 +227,8 @@ curl "http://127.0.0.1:3002/api/v1/roles/?name=Admin"
 
 **Delete user:**
 ```bash
-curl -X DELETE "http://127.0.0.1:3002/api/v1/users/1"
+curl -X DELETE "http://127.0.0.1:3002/api/v1/users/1" \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
 ## Response Status Codes
@@ -180,6 +239,7 @@ curl -X DELETE "http://127.0.0.1:3002/api/v1/users/1"
 | 201         | Created               |
 | 204         | No Content            |
 | 400         | Bad Request           |
+| 401         | Unauthorized          |
 | 404         | Not Found             |
 | 409         | Conflict              |
 | 422         | Validation Error      |
@@ -192,6 +252,7 @@ curl -X DELETE "http://127.0.0.1:3002/api/v1/users/1"
 | id         | int      | Primary key, auto-increment    |
 | name       | string   | Name, 1-100 characters         |
 | email      | string   | Email, unique                  |
+| password   | string   | Password, bcrypt hashed        |
 | age        | int      | Age, 0-150, optional           |
 | role_id    | int      | Role ID, optional              |
 | created_at | datetime | Creation time (auto)           |

@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from app.exceptions.handlers import ConflictException, NotFoundException
 from app.models.user import User
 from app.schemas.user import UserCreate, UserFilter, UserUpdate
+from app.services.auth import hash_password
 
 
 def get_user(db: Session, user_id: int) -> Optional[User]:
@@ -30,6 +31,7 @@ def create_user(db: Session, user_in: UserCreate) -> User:
     if existing:
         raise ConflictException(f"User with email '{user_in.email}' already exists")
     user = User(**user_in.model_dump())
+    user.password = hash_password(user.password)
     db.add(user)
     db.commit()
     db.refresh(user)

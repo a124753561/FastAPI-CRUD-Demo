@@ -20,6 +20,11 @@ class BadRequestException(Exception):
         self.detail = detail
 
 
+class UnauthorizedException(Exception):
+    def __init__(self, detail: str = "未登录或 token 已过期"):
+        self.detail = detail
+
+
 def register_exception_handlers(app):
     @app.exception_handler(NotFoundException)
     async def not_found_handler(_request: Request, exc: NotFoundException):
@@ -40,6 +45,13 @@ def register_exception_handlers(app):
         return JSONResponse(
             status_code=400,
             content=ApiResponse(code=400, message=exc.detail, data=None).model_dump(),
+        )
+
+    @app.exception_handler(UnauthorizedException)
+    async def unauthorized_handler(_request: Request, exc: UnauthorizedException):
+        return JSONResponse(
+            status_code=401,
+            content=ApiResponse(code=401, message=exc.detail, data=None).model_dump(),
         )
 
     @app.exception_handler(StarletteHTTPException)

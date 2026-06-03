@@ -8,6 +8,9 @@ class Settings(BaseSettings):
     PORT: int = 3002
     DEBUG: bool = False
     SQL_SHOW: bool = False
+    SECRET_KEY: str = "change-me-in-production"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    REFRESH_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7
 
     model_config = {"env_file": ".env", "case_sensitive": True}
 

@@ -16,6 +16,7 @@ fastapi-demo/
 │   ├── api/
 │   │   ├── response_route.py    # 自定义 APIRoute，统一 ApiResponse 包装
 │   │   └── v1/
+│   │       ├── auth.py           # 认证端点（登录）
 │   │       ├── router.py        # v1 路由聚合
 │   │       ├── users.py         # 用户 CRUD 端点
 │   │       └── roles.py         # 角色 CRUD 端点
@@ -28,10 +29,12 @@ fastapi-demo/
 │   │   ├── user.py              # Pydantic v2：UserCreate/UserUpdate/UserResponse/UserFilter
 │   │   └── role.py              # Pydantic v2：RoleCreate/RoleUpdate/RoleResponse/RoleFilter
 │   ├── services/
+│   │   ├── auth.py              # JWT 认证逻辑
 │   │   ├── user.py              # 用户业务逻辑层
 │   │   └── role.py              # 角色业务逻辑层
 │   └── exceptions/
 │       └── handlers.py          # 自定义异常 & 全局异常处理器
+├── init.sql                     # 数据库初始化脚本
 ├── pyproject.toml               # 项目元数据 & 依赖
 ├── .env                         # 环境变量
 └── README.md
@@ -60,7 +63,15 @@ fastapi-demo/
 pip install -e .
 ```
 
-### 2. 配置数据库
+### 2. 初始化数据库
+
+**方式一：使用 SQL 脚本（推荐）**
+
+```bash
+mysql -u 用户名 -p < init.sql
+```
+
+**方式二：手动建库建表**
 
 编辑 `.env` 文件，填写 MySQL 连接信息：
 
@@ -73,6 +84,8 @@ DATABASE_URL=mysql+pymysql://用户名:密码@localhost:3306/数据库名
 ```bash
 mysql -u 用户名 -p -e "CREATE DATABASE IF NOT EXISTS 数据库名 CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
 ```
+
+> 如果表还未创建，应用启动时会自动建表（`create_all`），无需手动执行。
 
 ### 3. 启动服务
 
@@ -103,7 +116,28 @@ python -m app.main
 
 开发时将 `.env` 中 `DEBUG` 设为 `true`，重启后终端会打印所有 SQL 语句。
 
+### JWT 密钥
+
+生产环境务必将 `.env` 中 `SECRET_KEY` 改为随机字符串：
+
+```
+SECRET_KEY=your-random-secret-key
+```
+
 ## API 接口
+
+### 认证接口
+
+所有接口前缀：`/api/v1/auth`
+
+| 方法 | 路径       | 说明              | 参数                   |
+|------|-----------|-------------------|------------------------|
+| POST | `/login`  | 邮箱密码登录       | Body: LoginRequest JSON |
+| POST | `/refresh`| 刷新 token        | Body: RefreshRequest JSON |
+
+> 登录成功返回 `access_token`（30 分钟有效）和 `refresh_token`（7 天有效）。调用其他接口时在请求头加上 `Authorization: Bearer <access_token>`。
+> access_token 过期后用 `refresh_token` 调用 `/auth/refresh` 获取新 token。
+> 创建用户接口无需登录（注册），其余所有接口均需 token 鉴权。
 
 ### 用户接口
 
@@ -131,27 +165,50 @@ python -m app.main
 
 ## 请求示例
 
-**创建用户：**
+**登录获取 token：**
+```bash
+curl -X POST "http://127.0.0.1:3002/api/v1/auth/login" \
+  -H "Content-Type: application/json" \
+  -d '{"email": "zhangsan@example.com", "password": "123456"}'
+```
+
+响应:
+```json
+{"code":200, "message":"操作成功", "data":{"access_token":"...", "refresh_token":"...", "token_type":"bearer"}}
+```
+
+**刷新 token：**
+```bash
+curl -X POST "http://127.0.0.1:3002/api/v1/auth/refresh" \
+  -H "Content-Type: application/json" \
+  -d '{"refresh_token": "your-refresh-token"}'
+```
+
+**创建用户（注册）：**
 ```bash
 curl -X POST "http://127.0.0.1:3002/api/v1/users/" \
   -H "Content-Type: application/json" \
-  -d '{"name": "张三", "email": "zhangsan@example.com", "age": 28}'
+  -d '{"name": "张三", "email": "zhangsan@example.com", "password": "123456", "age": 28}'
 ```
 
-**用户列表（分页+过滤）：**
+**用户列表（分页+过滤，需登录）：**
 ```bash
-curl "http://127.0.0.1:3002/api/v1/users/?skip=0&limit=10&name=张&age=28"
+TOKEN="your-token-here"
+curl "http://127.0.0.1:3002/api/v1/users/?skip=0&limit=10&name=张&age=28" \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
 **获取单个用户：**
 ```bash
-curl "http://127.0.0.1:3002/api/v1/users/1"
+curl "http://127.0.0.1:3002/api/v1/users/1" \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
 **部分更新：**
 ```bash
 curl -X PUT "http://127.0.0.1:3002/api/v1/users/1" \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
   -d '{"name": "李四"}'
 ```
 
@@ -159,6 +216,7 @@ curl -X PUT "http://127.0.0.1:3002/api/v1/users/1" \
 ```bash
 curl -X POST "http://127.0.0.1:3002/api/v1/roles/" \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
   -d '{"name": "管理员", "description": "系统管理员"}'
 ```
 
@@ -169,7 +227,8 @@ curl "http://127.0.0.1:3002/api/v1/roles/?name=管理"
 
 **删除用户：**
 ```bash
-curl -X DELETE "http://127.0.0.1:3002/api/v1/users/1"
+curl -X DELETE "http://127.0.0.1:3002/api/v1/users/1" \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
 ## 响应状态码
@@ -180,6 +239,7 @@ curl -X DELETE "http://127.0.0.1:3002/api/v1/users/1"
 | 201    | 创建成功       |
 | 204    | 删除成功       |
 | 400    | 请求参数错误   |
+| 401    | 未登录或 token 无效 |
 | 404    | 用户不存在     |
 | 409    | 邮箱冲突       |
 | 422    | 请求体校验失败 |
@@ -192,6 +252,7 @@ curl -X DELETE "http://127.0.0.1:3002/api/v1/users/1"
 | id        | int     | 主键，自增           |
 | name      | string  | 姓名，1-100 字符      |
 | email     | string  | 邮箱，唯一           |
+| password  | string  | 密码，bcrypt 哈希存储 |
 | age       | int     | 年龄，0-150，可选     |
 | role_id   | int     | 角色 ID，可选         |
 | created_at| datetime| 创建时间（自动生成）  |
