@@ -22,11 +22,14 @@ fastapi-demo/
 │   │       └── roles.py         # Role CRUD endpoints
 │   ├── models/
 │   │   ├── __init__.py          # Model imports (for create_all)
+│   │   ├── request_log.py     # RequestLog ORM model
 │   │   ├── user.py              # SQLAlchemy User ORM model
 │   │   └── role.py              # SQLAlchemy Role ORM model
 │   ├── middleware/
 │   │   ├── __init__.py
-│   │   └── auth.py              # Auth middleware (whitelist + JWT validation)
+│   │   ├── trace.py              # Trace middleware (generates trace_id)
+│   │   ├── auth.py              # Auth middleware (whitelist + JWT validation)
+│   │   └── logging.py           # Request logging middleware (records request/response/latency)
 │   ├── schemas/
 │   │   ├── response.py          # ApiResponse generic response model
 │   │   ├── user.py              # Pydantic v2: UserCreate/UserUpdate/UserResponse/UserFilter
@@ -294,7 +297,9 @@ All endpoints return a unified JSON structure:
 {
   "code": 200,
   "message": "OK",
-  "data": { ... }
+  "data": { ... },
+  "timestamp": "2026-06-03T12:00:00.000000+00:00",
+  "trace_id": "a1b2c3d4e5f6789012345678abcdef01"
 }
 ```
 
@@ -302,6 +307,12 @@ All endpoints return a unified JSON structure:
 
 ```
 HTTP Request
+    │
+    ▼
+Middleware (app/middleware/trace.py)  —— trace (generates globally unique trace_id)
+    │
+    ▼
+Middleware (app/middleware/logging.py)  —— request logging (records request/response/latency)
     │
     ▼
 Middleware (app/middleware/auth.py)  —— unified auth (whitelist bypass, JWT verify)
@@ -319,7 +330,45 @@ Model (app/models/*.py) —— SQLAlchemy ORM
 MySQL
 ```
 
-Auth is handled centrally by `app/middleware/auth.py`. Exceptions are caught by `app/exceptions/handlers.py` and returned as standardized JSON error responses.
+Auth is handled centrally by `app/middleware/auth.py`. Exceptions are caught by `app/exceptions/handlers.py` and returned as standardized JSON error responses. Every request's URL, params, response, and latency are automatically recorded to the `fastapi_request_logs` table by `app/middleware/logging.py` — sensitive fields (passwords, tokens) are masked automatically.
+
+## Request Logging
+
+All API requests are automatically logged to the `fastapi_request_logs` table — no manual instrumentation needed.
+
+### Log Fields
+
+| Field | Type | Description |
+|------|------|-------------|
+| url | string | Full request URL |
+| method | string | HTTP method (GET/POST/PUT/DELETE etc.) |
+| query_params | json | URL query parameters |
+| request_body | json | Request body (password fields masked) |
+| response_body | json | Response body (truncated at 4096 chars) |
+| status_code | int | HTTP status code |
+| response_time_ms | int | Response time in milliseconds |
+| client_ip | string | Client IP address |
+| user_agent | string | Browser/client identifier |
+| request_headers | json | Request headers (Authorization etc. masked) |
+| user_id | int | Authenticated user ID (null if not logged in) |
+| trace_id | string | Globally unique request trace ID (32-char hex) |
+| created_at | datetime | Request timestamp |
+
+### Common Queries
+
+```sql
+-- Recent request logs
+SELECT * FROM fastapi_request_logs ORDER BY created_at DESC LIMIT 20;
+
+-- Slow requests (> 1000ms)
+SELECT * FROM fastapi_request_logs WHERE response_time_ms > 1000 ORDER BY response_time_ms DESC;
+
+-- Requests by a specific user
+SELECT * FROM fastapi_request_logs WHERE user_id = 1 ORDER BY created_at DESC;
+
+-- Failed requests (status >= 400)
+SELECT * FROM fastapi_request_logs WHERE status_code >= 400 ORDER BY created_at DESC;
+```
 
 ## License
 

@@ -9,6 +9,8 @@ from app.config import settings
 from app.database import Base, engine
 from app.exceptions.handlers import register_exception_handlers
 from app.middleware.auth import AuthMiddleware
+from app.middleware.logging import RequestLoggingMiddleware
+from app.middleware.trace import TraceIdMiddleware, setup_logging
 from app.schemas.response import ApiResponse
 
 
@@ -19,8 +21,11 @@ async def lifespan(_app: FastAPI):
 
 
 def create_app() -> FastAPI:
+    setup_logging()
     app = FastAPI(title=settings.APP_NAME, lifespan=lifespan)
     app.add_middleware(AuthMiddleware)
+    app.add_middleware(RequestLoggingMiddleware)
+    app.add_middleware(TraceIdMiddleware)
     register_exception_handlers(app)
 
     @app.exception_handler(RequestValidationError)
@@ -48,4 +53,4 @@ app = create_app()
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=settings.PORT)
+    uvicorn.run(app, host="127.0.0.1", port=settings.PORT, access_log=False)

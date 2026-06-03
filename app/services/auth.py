@@ -39,7 +39,7 @@ def get_current_user(
     request: Request,
     db: Session = Depends(get_db),
 ) -> User:
-    user_id: int = getattr(request.state, "user_id", None)
+    user_id: int = getattr(request.state, "user_id", None) or request.scope.get("user_id")
     if user_id is None:
         raise UnauthorizedException("未登录或 token 已过期")
 

@@ -22,11 +22,14 @@ fastapi-demo/
 │   │       └── roles.py         # 角色 CRUD 端点
 │   ├── models/
 │   │   ├── __init__.py          # 模型导入（供 create_all）
+│   │   ├── request_log.py     # 请求日志 ORM 模型
 │   │   ├── user.py              # SQLAlchemy User ORM 模型
 │   │   └── role.py              # SQLAlchemy Role ORM 模型
 │   ├── middleware/
 │   │   ├── __init__.py
-│   │   └── auth.py              # 认证拦截中间件（白名单+JWT校验）
+│   │   ├── trace.py              # 链路追踪中间件（生成 trace_id）
+│   │   ├── auth.py              # 认证拦截中间件（白名单+JWT校验）
+│   │   └── logging.py           # 请求日志中间件（记录请求/响应/耗时）
 │   ├── schemas/
 │   │   ├── response.py          # ApiResponse 通用响应模型
 │   │   ├── user.py              # Pydantic v2：UserCreate/UserUpdate/UserResponse/UserFilter
@@ -294,7 +297,9 @@ curl -X DELETE "http://127.0.0.1:3002/api/v1/users/1" \
 {
   "code": 200,
   "message": "操作成功",
-  "data": { ... }
+  "data": { ... },
+  "timestamp": "2026-06-03T12:00:00.000000+00:00",
+  "trace_id": "a1b2c3d4e5f6789012345678abcdef01"
 }
 ```
 
@@ -302,6 +307,12 @@ curl -X DELETE "http://127.0.0.1:3002/api/v1/users/1" \
 
 ```
 HTTP 请求
+    │
+    ▼
+Middleware (app/middleware/trace.py) —— 链路追踪（生成全局唯一 trace_id）
+    │
+    ▼
+Middleware (app/middleware/logging.py) —— 请求日志（记录请求/响应/耗时）
     │
     ▼
 Middleware (app/middleware/auth.py)  —— 统一鉴权（白名单放行，其余校验 JWT）
@@ -319,7 +330,45 @@ Model (app/models/*.py) —— SQLAlchemy ORM
 MySQL
 ```
 
-鉴权由 `app/middleware/auth.py` 统一拦截处理，异常由 `app/exceptions/handlers.py` 统一捕获并返回标准 JSON 错误响应。
+鉴权由 `app/middleware/auth.py` 统一拦截处理，异常由 `app/exceptions/handlers.py` 统一捕获并返回标准 JSON 错误响应。每个请求的 URL、参数、响应、耗时等信息由 `app/middleware/logging.py` 自动记录到 `fastapi_request_logs` 表，敏感字段（密码、token 等）自动屏蔽。
+
+## 请求日志
+
+所有 API 请求自动记录到 `fastapi_request_logs` 表，无需手动埋点。
+
+### 日志字段
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| url | string | 请求完整 URL |
+| method | string | HTTP 方法（GET/POST/PUT/DELETE 等） |
+| query_params | json | URL 查询参数 |
+| request_body | json | 请求体（password 等敏感字段已屏蔽） |
+| response_body | json | 响应体（超过 4096 字符截断） |
+| status_code | int | HTTP 状态码 |
+| response_time_ms | int | 接口响应耗时（毫秒） |
+| client_ip | string | 客户端 IP |
+| user_agent | string | 浏览器/客户端标识 |
+| request_headers | json | 请求头（Authentication 等已屏蔽） |
+| user_id | int | 请求用户 ID（未登录为空） |
+| trace_id | string | 全局唯一请求追踪 ID（32 位 hex） |
+| created_at | datetime | 请求时间 |
+
+### 常用查询
+
+```sql
+-- 查看最近的请求日志
+SELECT * FROM fastapi_request_logs ORDER BY created_at DESC LIMIT 20;
+
+-- 查看慢请求（> 1000ms）
+SELECT * FROM fastapi_request_logs WHERE response_time_ms > 1000 ORDER BY response_time_ms DESC;
+
+-- 查看某用户的请求记录
+SELECT * FROM fastapi_request_logs WHERE user_id = 1 ORDER BY created_at DESC;
+
+-- 查看失败请求（状态码 >= 400）
+SELECT * FROM fastapi_request_logs WHERE status_code >= 400 ORDER BY created_at DESC;
+```
 
 ## License
 
