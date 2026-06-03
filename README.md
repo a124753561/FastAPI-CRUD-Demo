@@ -1,4 +1,6 @@
-# FastAPI CRUD Demo
+# FastAPI 用户 CRUD API 示例
+
+[English](./README-en.md)
 
 基于 FastAPI + SQLAlchemy + MySQL 的用户增删改查 API 示例项目。
 
@@ -26,13 +28,13 @@ fastapi-demo/
 
 ## 技术栈
 
-| 组件 | 选型 |
-|------|------|
-| Web 框架 | FastAPI |
-| ORM | SQLAlchemy 2.0 |
-| 数据库 | MySQL（通过 PyMySQL 驱动） |
-| 数据校验 | Pydantic v2 |
-| 配置管理 | pydantic-settings |
+| 组件         | 选型               |
+|-------------|-------------------|
+| Web 框架     | FastAPI           |
+| ORM         | SQLAlchemy 2.0    |
+| 数据库       | MySQL（PyMySQL 驱动）|
+| 数据校验     | Pydantic v2       |
+| 配置管理     | pydantic-settings |
 
 ## 快速开始
 
@@ -75,15 +77,15 @@ python -m app.main
 
 所有接口前缀：`/api/v1/users`
 
-| 方法 | 路径 | 说明 | 参数 |
-|------|------|------|------|
-| POST | `/` | 创建用户 | Body: UserCreate JSON |
-| GET | `/` | 用户列表 | Query: `skip`(默认0), `limit`(默认100) |
-| GET | `/{user_id}` | 获取用户 | Path: user_id |
-| PUT | `/{user_id}` | 更新用户（支持部分更新） | Path: user_id, Body: UserUpdate JSON |
-| DELETE | `/{user_id}` | 删除用户 | Path: user_id |
+| 方法   | 路径          | 说明              | 参数                                |
+|--------|-------------|-------------------|-------------------------------------|
+| POST   | `/`          | 创建用户          | Body: UserCreate JSON              |
+| GET    | `/`          | 用户列表          | Query: `skip`(默认0), `limit`(默认100)|
+| GET    | `/{user_id}` | 获取用户          | Path: user_id                      |
+| PUT    | `/{user_id}` | 更新用户（部分更新）| Path: user_id, Body: UserUpdate JSON|
+| DELETE | `/{user_id}` | 删除用户          | Path: user_id                      |
 
-### 请求示例
+## 请求示例
 
 **创建用户：**
 ```bash
@@ -114,29 +116,29 @@ curl -X PUT "http://127.0.0.1:3002/api/v1/users/1" \
 curl -X DELETE "http://127.0.0.1:3002/api/v1/users/1"
 ```
 
-### 响应状态码
+## 响应状态码
 
-| 状态码 | 含义 |
-|--------|------|
-| 200 | 请求成功 |
-| 201 | 创建成功 |
-| 204 | 删除成功 |
-| 400 | 请求参数错误 |
-| 404 | 用户不存在 |
-| 409 | 邮箱冲突 |
-| 422 | 请求体校验失败 |
-| 500 | 服务器内部错误 |
+| 状态码 | 含义           |
+|--------|----------------|
+| 200    | 请求成功       |
+| 201    | 创建成功       |
+| 204    | 删除成功       |
+| 400    | 请求参数错误   |
+| 404    | 用户不存在     |
+| 409    | 邮箱冲突       |
+| 422    | 请求体校验失败 |
+| 500    | 服务器内部错误 |
 
-### 用户字段
+## 用户字段
 
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| id | int | 主键，自增 |
-| name | string | 姓名，1-100 字符 |
-| email | string | 邮箱，唯一 |
-| age | int | 年龄，0-150，可选 |
-| created_at | datetime | 创建时间（自动生成） |
-| updated_at | datetime | 更新时间（自动更新） |
+| 字段       | 类型     | 说明                 |
+|-----------|---------|----------------------|
+| id        | int     | 主键，自增           |
+| name      | string  | 姓名，1-100 字符      |
+| email     | string  | 邮箱，唯一           |
+| age       | int     | 年龄，0-150，可选     |
+| created_at| datetime| 创建时间（自动生成）  |
+| updated_at| datetime| 更新时间（自动更新）  |
 
 ## 架构设计
 
@@ -157,3 +159,7 @@ MySQL
 ```
 
 异常由 `app/exceptions/handlers.py` 统一捕获并返回标准 JSON 错误响应。
+
+## License
+
+[MIT](LICENSE)
