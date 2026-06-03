@@ -24,6 +24,9 @@ fastapi-demo/
 │   │   ├── __init__.py          # 模型导入（供 create_all）
 │   │   ├── user.py              # SQLAlchemy User ORM 模型
 │   │   └── role.py              # SQLAlchemy Role ORM 模型
+│   ├── middleware/
+│   │   ├── __init__.py
+│   │   └── auth.py              # 认证拦截中间件（白名单+JWT校验）
 │   ├── schemas/
 │   │   ├── response.py          # ApiResponse 通用响应模型
 │   │   ├── user.py              # Pydantic v2：UserCreate/UserUpdate/UserResponse/UserFilter
@@ -49,6 +52,8 @@ fastapi-demo/
 | 数据库       | MySQL（PyMySQL 驱动）|
 | 数据校验     | Pydantic v2       |
 | 配置管理     | pydantic-settings |
+| 认证鉴权     | JWT (python-jose) + bcrypt (passlib) |
+| 中间件       | Starlette BaseHTTPMiddleware |
 
 ## 快速开始
 
@@ -123,6 +128,18 @@ python -m app.main
 ```
 SECRET_KEY=your-random-secret-key
 ```
+
+`.env` 完整配置项：
+
+| 变量                         | 默认值                                                      | 说明             |
+|-----------------------------|------------------------------------------------------------|------------------|
+| DATABASE_URL                | mysql+pymysql://root:123456@localhost:3306/demo            | MySQL 连接串      |
+| APP_NAME                    | FastAPI CRUD Demo                                          | 应用名称          |
+| PORT                        | 3002                                                       | 服务端口          |
+| DEBUG                       | false                                                      | SQL 日志开关       |
+| SECRET_KEY                  | change-me-in-production                                    | JWT 签名密钥       |
+| ACCESS_TOKEN_EXPIRE_MINUTES | 30                                                         | access_token 有效期（分钟）|
+| REFRESH_TOKEN_EXPIRE_MINUTES| 10080                                                      | refresh_token 有效期（分钟，7天）|
 
 ## API 接口
 
@@ -222,7 +239,8 @@ curl -X POST "http://127.0.0.1:3002/api/v1/roles/" \
 
 **角色列表：**
 ```bash
-curl "http://127.0.0.1:3002/api/v1/roles/?name=管理"
+curl "http://127.0.0.1:3002/api/v1/roles/?name=管理" \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
 **删除用户：**
@@ -286,19 +304,22 @@ curl -X DELETE "http://127.0.0.1:3002/api/v1/users/1" \
 HTTP 请求
     │
     ▼
-Router (app/api/v1/users.py)  —— 参数解析，调用服务
+Middleware (app/middleware/auth.py)  —— 统一鉴权（白名单放行，其余校验 JWT）
     │
     ▼
-Service (app/services/user.py) —— 业务逻辑，事务管理
+Router (app/api/v1/*.py)  —— 参数解析，调用服务
     │
     ▼
-Model (app/models/user.py) —— SQLAlchemy ORM
+Service (app/services/*.py) —— 业务逻辑，事务管理
+    │
+    ▼
+Model (app/models/*.py) —— SQLAlchemy ORM
     │
     ▼
 MySQL
 ```
 
-异常由 `app/exceptions/handlers.py` 统一捕获并返回标准 JSON 错误响应。
+鉴权由 `app/middleware/auth.py` 统一拦截处理，异常由 `app/exceptions/handlers.py` 统一捕获并返回标准 JSON 错误响应。
 
 ## License
 

@@ -24,6 +24,9 @@ fastapi-demo/
 │   │   ├── __init__.py          # Model imports (for create_all)
 │   │   ├── user.py              # SQLAlchemy User ORM model
 │   │   └── role.py              # SQLAlchemy Role ORM model
+│   ├── middleware/
+│   │   ├── __init__.py
+│   │   └── auth.py              # Auth middleware (whitelist + JWT validation)
 │   ├── schemas/
 │   │   ├── response.py          # ApiResponse generic response model
 │   │   ├── user.py              # Pydantic v2: UserCreate/UserUpdate/UserResponse/UserFilter
@@ -49,6 +52,8 @@ fastapi-demo/
 | Database         | MySQL (PyMySQL)   |
 | Data Validation  | Pydantic v2       |
 | Config Management| pydantic-settings |
+| Auth             | JWT (python-jose) + bcrypt (passlib) |
+| Middleware       | Starlette BaseHTTPMiddleware |
 
 ## Quick Start
 
@@ -123,6 +128,18 @@ In production, always change `SECRET_KEY` in `.env` to a random string:
 ```
 SECRET_KEY=your-random-secret-key
 ```
+
+All `.env` config options:
+
+| Variable                     | Default                                                    | Description                    |
+|------------------------------|------------------------------------------------------------|--------------------------------|
+| DATABASE_URL                 | mysql+pymysql://root:123456@localhost:3306/demo            | MySQL connection string        |
+| APP_NAME                     | FastAPI CRUD Demo                                          | App name                       |
+| PORT                         | 3002                                                       | Server port                    |
+| DEBUG                        | false                                                      | SQL log toggle                 |
+| SECRET_KEY                   | change-me-in-production                                    | JWT signing key                |
+| ACCESS_TOKEN_EXPIRE_MINUTES  | 30                                                         | access_token TTL (minutes)     |
+| REFRESH_TOKEN_EXPIRE_MINUTES | 10080                                                      | refresh_token TTL (minutes, 7d)|
 
 ## API Endpoints
 
@@ -222,7 +239,8 @@ curl -X POST "http://127.0.0.1:3002/api/v1/roles/" \
 
 **List roles:**
 ```bash
-curl "http://127.0.0.1:3002/api/v1/roles/?name=Admin"
+curl "http://127.0.0.1:3002/api/v1/roles/?name=Admin" \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
 **Delete user:**
@@ -286,19 +304,22 @@ All endpoints return a unified JSON structure:
 HTTP Request
     │
     ▼
-Router (app/api/v1/users.py)  —— parse params, call service
+Middleware (app/middleware/auth.py)  —— unified auth (whitelist bypass, JWT verify)
     │
     ▼
-Service (app/services/user.py) —— business logic, transaction management
+Router (app/api/v1/*.py)  —— parse params, call service
     │
     ▼
-Model (app/models/user.py) —— SQLAlchemy ORM
+Service (app/services/*.py) —— business logic, transaction management
+    │
+    ▼
+Model (app/models/*.py) —— SQLAlchemy ORM
     │
     ▼
 MySQL
 ```
 
-Exceptions are caught by `app/exceptions/handlers.py` and returned as standardized JSON error responses.
+Auth is handled centrally by `app/middleware/auth.py`. Exceptions are caught by `app/exceptions/handlers.py` and returned as standardized JSON error responses.
 
 ## License
 
