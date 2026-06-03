@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "mysql+pymysql://root:123456@localhost:3306/demo"
     PORT: int = 3002
     DEBUG: bool = False
+    SQL_SHOW: bool = False
 
     model_config = {"env_file": ".env", "case_sensitive": True}
 

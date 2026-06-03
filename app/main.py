@@ -24,10 +24,18 @@ def create_app() -> FastAPI:
     @app.exception_handler(RequestValidationError)
     async def validation_handler(_request: Request, exc: RequestValidationError):
         errors = exc.errors()
-        detail = "; ".join(f"{e['loc'][-1]}: {e['msg']}" for e in errors)
+        parts = []
+        for e in errors:
+            msg = e["msg"].removeprefix("Value error, ")
+            meaningful = [p for p in e["loc"] if p != "body"]
+            if meaningful:
+                loc_str = " -> ".join(str(p) for p in meaningful)
+                parts.append(f"{loc_str}: {msg}")
+            else:
+                parts.append(msg)
         return JSONResponse(
             status_code=422,
-            content=ApiResponse(code=422, message=detail, data=None).model_dump(),
+            content=ApiResponse(code=422, message="; ".join(parts), data=None).model_dump(),
         )
 
     app.include_router(api_v1_router, prefix=settings.API_V1_PREFIX)
