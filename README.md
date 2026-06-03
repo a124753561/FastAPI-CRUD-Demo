@@ -64,12 +64,12 @@ mysql -u 用户名 -p -e "CREATE DATABASE IF NOT EXISTS 数据库名 CHARACTER S
 ### 3. 启动服务
 
 ```bash
-python -m uvicorn app.main:app --reload
+python -m app.main
 ```
 
 服务启动后访问：
-- API 文档：http://127.0.0.1:8000/docs
-- 备用文档：http://127.0.0.1:8000/redoc
+- API 文档：http://127.0.0.1:3002/docs
+- 备用文档：http://127.0.0.1:3002/redoc
 
 ## API 接口
 
@@ -87,31 +87,31 @@ python -m uvicorn app.main:app --reload
 
 **创建用户：**
 ```bash
-curl -X POST "http://127.0.0.1:8000/api/v1/users/" \
+curl -X POST "http://127.0.0.1:3002/api/v1/users/" \
   -H "Content-Type: application/json" \
   -d '{"name": "张三", "email": "zhangsan@example.com", "age": 28}'
 ```
 
 **用户列表（分页）：**
 ```bash
-curl "http://127.0.0.1:8000/api/v1/users/?skip=0&limit=10"
+curl "http://127.0.0.1:3002/api/v1/users/?skip=0&limit=10"
 ```
 
 **获取单个用户：**
 ```bash
-curl "http://127.0.0.1:8000/api/v1/users/1"
+curl "http://127.0.0.1:3002/api/v1/users/1"
 ```
 
 **部分更新：**
 ```bash
-curl -X PUT "http://127.0.0.1:8000/api/v1/users/1" \
+curl -X PUT "http://127.0.0.1:3002/api/v1/users/1" \
   -H "Content-Type: application/json" \
   -d '{"name": "李四"}'
 ```
 
 **删除用户：**
 ```bash
-curl -X DELETE "http://127.0.0.1:8000/api/v1/users/1"
+curl -X DELETE "http://127.0.0.1:3002/api/v1/users/1"
 ```
 
 ### 响应状态码
